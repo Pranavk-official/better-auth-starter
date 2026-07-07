@@ -21,9 +21,13 @@ services:
       context: .
       dockerfile: Dockerfile.dev
     restart: unless-stopped
+    env_file:
+      - .env
     environment:
+      # These override the values from .env inside the container
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/better_auth_starter?schema=public
       - NODE_ENV=development
+      - BETTER_AUTH_URL=http://localhost:3000
     ports:
       - "3000:3000"
     volumes:

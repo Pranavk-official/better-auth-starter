@@ -20,9 +20,14 @@ This is **better-auth-starter** — a Next.js 16 (App Router) starter with Bette
 
 - Schema lives in `prisma/schema.prisma`. Prisma CLI config is in `prisma.config.ts`.
 - The generated client is output to `src/generated/prisma/` — **this directory is gitignored**. Always run `bun run db:generate` after pulling schema changes.
+- **Prisma 7 requires a driver adapter.** The singleton in `src/lib/prisma.ts` creates a `pg.Pool` and wraps it with `PrismaPg` from `@prisma/adapter-pg`. Never call `new PrismaClient()` without the `adapter` option.
 - Import the Prisma singleton (never instantiate `PrismaClient` directly in application code):
   ```ts
   import { prisma } from "@/lib/prisma";
+  ```
+- Import types from the generated client path:
+  ```ts
+  import type { User } from "@/generated/prisma/client";
   ```
 - After editing the schema run `bun run db:migrate` (dev) or `bun run db:migrate:deploy` (prod/CI).
 - Never run raw `prisma` commands — always go through the `bun run db:*` scripts defined in `package.json`.

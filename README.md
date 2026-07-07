@@ -7,7 +7,7 @@ A Next.js starter template with [Better Auth](https://better-auth.com), [Prisma]
 - **Framework** — [Next.js 16](https://nextjs.org) (App Router, TypeScript)
 - **Auth** — [Better Auth](https://better-auth.com) with email/password + 15 social providers
 - **Styling** — [Tailwind CSS v4](https://tailwindcss.com)
-- **ORM** — [Prisma 7](https://www.prisma.io) with PostgreSQL
+- **ORM** — [Prisma 7](https://www.prisma.io) with PostgreSQL (via `@prisma/adapter-pg`)
 - **Runtime / package manager** — [Bun](https://bun.sh)
 - **Local infrastructure** — Docker Compose (PostgreSQL 16)
 

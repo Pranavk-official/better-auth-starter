@@ -39,11 +39,13 @@ Flags used:
 
 ---
 
-## Step 2 — Install Prisma
+## Step 2 — Install Prisma and the pg driver adapter
+
+Prisma 7 requires a driver adapter for direct database connections — the classic `new PrismaClient()` constructor no longer accepts a bare connection string.
 
 ```sh
-bun add @prisma/client dotenv
-bun add -D prisma
+bun add @prisma/client @prisma/adapter-pg pg dotenv
+bun add -D prisma @types/pg
 ```
 
 ---
@@ -196,27 +198,34 @@ TWITTER_CLIENT_ID=""        TWITTER_CLIENT_SECRET=""
 Create `src/lib/prisma.ts`:
 
 ```ts
-import { PrismaClient } from "../generated/prisma";
+import { PrismaClient } from "../generated/prisma/client";
+import { PrismaPg } from "@prisma/adapter-pg";
+import { Pool } from "pg";
 
-const globalForPrisma = globalThis as unknown as {
-  prisma: PrismaClient | undefined;
-};
-
-export const prisma =
-  globalForPrisma.prisma ??
-  new PrismaClient({
+function createPrismaClient() {
+  const pool = new Pool({ connectionString: process.env.DATABASE_URL! });
+  const adapter = new PrismaPg(pool);
+  return new PrismaClient({
+    adapter,
     log:
       process.env.NODE_ENV === "development"
         ? ["query", "error", "warn"]
         : ["error"],
   });
+}
+
+const globalForPrisma = globalThis as unknown as {
+  prisma: PrismaClient | undefined;
+};
+
+export const prisma = globalForPrisma.prisma ?? createPrismaClient();
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 ```
 
 This pattern prevents multiple `PrismaClient` instances from being created during Next.js hot reloads in development.
 
-> **Prisma 7 note:** The generated client is output to `src/generated/prisma/` per the schema config. Always import from that path, not from `@prisma/client`.
+> **Prisma 7 note:** The generated client is output to `src/generated/prisma/` per the schema config. Always import from `../generated/prisma/client` (or `@/generated/prisma/client` with the path alias), not from `@prisma/client`. Prisma 7 also requires a driver adapter — `PrismaPg` wraps a `pg.Pool` to provide the SQL connection.
 
 ---
 
