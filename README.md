@@ -1,36 +1,103 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# better-auth-starter
 
-## Getting Started
+A Next.js starter template with [Prisma](https://www.prisma.io/) ORM, PostgreSQL, and a fully containerised local development environment powered by [Docker Compose](https://docs.docker.com/compose/).
 
-First, run the development server:
+## Tech stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Framework** — [Next.js 16](https://nextjs.org) (App Router, TypeScript)
+- **Styling** — [Tailwind CSS v4](https://tailwindcss.com)
+- **ORM** — [Prisma 7](https://www.prisma.io) with PostgreSQL
+- **Runtime / package manager** — [Bun](https://bun.sh)
+- **Local infrastructure** — Docker Compose (PostgreSQL 16)
+
+## Prerequisites
+
+- [Bun](https://bun.sh) ≥ 1.0
+- [Docker](https://www.docker.com) with the Compose plugin
+
+## Quick start
+
+### Option A — everything in Docker (recommended)
+
+Runs both the Next.js dev server and PostgreSQL as containers with hot-reload via bind mounts.
+
+```sh
+docker compose -f docker-compose.dev.yml up --build
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Option B — only the database in Docker, app runs locally
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```sh
+# 1. Start only PostgreSQL
+docker compose -f docker-compose.dev.yml up postgres
 
-## Learn More
+# 2. Install dependencies
+bun install
 
-To learn more about Next.js, take a look at the following resources:
+# 3. Apply database migrations
+bun run db:migrate
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# 4. Start the dev server
+bun run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Open [http://localhost:3000](http://localhost:3000).
 
-## Deploy on Vercel
+## Environment variables
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Copy `.env.example` to `.env` and adjust the values if needed.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```sh
+cp .env.example .env
+```
+
+| Variable | Default | Description |
+|---|---|---|
+| `DATABASE_URL` | `postgresql://postgres:postgres@localhost:5432/better_auth_starter?schema=public` | PostgreSQL connection string |
+
+> When running the full Docker Compose stack, the `app` service automatically overrides `DATABASE_URL` to use the `postgres` service hostname.
+
+## Database scripts
+
+```sh
+bun run db:migrate        # create & apply a new migration (dev)
+bun run db:migrate:deploy # apply migrations (CI / production)
+bun run db:push           # push schema changes without a migration file
+bun run db:generate       # regenerate the Prisma client
+bun run db:studio         # open Prisma Studio in the browser
+bun run db:seed           # run the seed script
+```
+
+## Project structure
+
+```
+better-auth-starter/
+├── docker-compose.dev.yml   # local dev stack (app + postgres)
+├── Dockerfile.dev           # dev image for the Next.js app
+├── prisma/
+│   └── schema.prisma        # database schema
+├── prisma.config.ts         # Prisma CLI configuration
+├── src/
+│   ├── app/                 # Next.js App Router pages
+│   ├── generated/
+│   │   └── prisma/          # auto-generated Prisma client (gitignored)
+│   └── lib/
+│       └── prisma.ts        # Prisma client singleton
+└── .env.example             # environment variable template
+```
+
+## Adding a database model
+
+1. Add the model to `prisma/schema.prisma`.
+2. Run `bun run db:migrate` to create a migration and regenerate the client.
+3. Import the client in your code:
+
+```ts
+import { prisma } from "@/lib/prisma";
+```
+
+## Recreating from scratch
+
+See [SETUP_GUIDE.md](./SETUP_GUIDE.md) for a full step-by-step walkthrough.
