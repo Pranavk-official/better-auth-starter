@@ -7,7 +7,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 <!-- BEGIN:project-rules -->
 ## Project context
 
-This is **better-auth-starter** — a Next.js 16 (App Router) starter with Prisma 7 + PostgreSQL and a bun-only toolchain.
+This is **better-auth-starter** — a Next.js 16 (App Router) starter with Better Auth, Prisma 7 + PostgreSQL, 15 social login providers, and a bun-only toolchain.
 
 ## Package manager
 
@@ -33,6 +33,16 @@ This is **better-auth-starter** — a Next.js 16 (App Router) starter with Prism
 - Bring everything up: `docker compose -f docker-compose.dev.yml up --build`.
 - The `app` container automatically injects `DATABASE_URL` with the `postgres` service hostname; `.env` uses `localhost` for running the app outside Docker.
 - Port mappings: app → `3000`, postgres → `5432`.
+
+## Better Auth
+
+- Server instance lives in `src/lib/auth.ts` — export is named `auth`.
+- React client lives in `src/lib/auth-client.ts` — export is named `authClient` with individual method exports (`signIn`, `signOut`, `signUp`, `useSession`, `getSession`).
+- The catch-all API route is `src/app/api/auth/[...all]/route.ts`.
+- Session types are exported from `src/lib/auth.ts` as `Session` and `User`.
+- To get the session server-side: `auth.api.getSession({ headers: await headers() })`.
+- To sign in client-side: `authClient.signIn.social({ provider: "<id>" })` or `authClient.signIn.email({ email, password })`.
+- When adding a new social provider, add it to the `socialProviders` block in `src/lib/auth.ts` and document the env vars in `.env.example`.
 
 ## Code conventions
 

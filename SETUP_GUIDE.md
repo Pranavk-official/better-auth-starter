@@ -1,6 +1,6 @@
 # Recreating better-auth-starter from scratch
 
-A step-by-step guide to reproduce this starter template manually.
+A step-by-step guide to reproduce this starter template manually — Next.js 16, Prisma 7, Better Auth, 15 social login providers, PostgreSQL, and Docker Compose.
 
 ## Prerequisites
 
@@ -63,7 +63,7 @@ This creates:
 
 ## Step 4 — Update `prisma/schema.prisma`
 
-Add the `url` field to the `datasource` block and confirm the generator output path:
+Confirm the generator output path. In Prisma 7 the connection URL lives in `prisma.config.ts`, **not** in the schema file, so the datasource block only needs the provider:
 
 ```prisma
 generator client {
@@ -73,7 +73,60 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+}
+```
+
+Then add the four models required by Better Auth:
+
+```prisma
+model User {
+  id            String    @id @default(cuid())
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  sessions      Session[]
+  accounts      Account[]
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  expiresAt DateTime
+  token     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  ipAddress String?
+  userAgent String?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String
+  providerId            String
+  userId                String
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  accessToken           String?
+  refreshToken          String?
+  idToken               String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  password              String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+}
+
+model Verification {
+  id         String    @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime? @default(now())
+  updatedAt  DateTime? @updatedAt
 }
 ```
 
@@ -111,6 +164,29 @@ The `create-next-app` scaffold already adds `.env*`; just add the negation line 
 ```env
 # Copy this file to .env and fill in your values.
 DATABASE_URL="postgresql://postgres:postgres@localhost:5432/better_auth_starter?schema=public"
+
+# Better Auth
+# Generate a secret with: openssl rand -base64 32
+BETTER_AUTH_SECRET=""
+BETTER_AUTH_URL="http://localhost:3000"
+
+# Social providers — fill in only the ones you want to enable.
+# Callback URL pattern: http://localhost:3000/api/auth/callback/<provider>
+APPLE_CLIENT_ID=""          APPLE_CLIENT_SECRET=""
+DISCORD_CLIENT_ID=""        DISCORD_CLIENT_SECRET=""
+DROPBOX_CLIENT_ID=""        DROPBOX_CLIENT_SECRET=""
+FACEBOOK_CLIENT_ID=""       FACEBOOK_CLIENT_SECRET=""
+GITHUB_CLIENT_ID=""         GITHUB_CLIENT_SECRET=""
+GITLAB_CLIENT_ID=""         GITLAB_CLIENT_SECRET=""
+GOOGLE_CLIENT_ID=""         GOOGLE_CLIENT_SECRET=""
+LINKEDIN_CLIENT_ID=""       LINKEDIN_CLIENT_SECRET=""
+MICROSOFT_CLIENT_ID=""      MICROSOFT_CLIENT_SECRET=""
+REDDIT_CLIENT_ID=""         REDDIT_CLIENT_SECRET=""
+ROBLOX_CLIENT_ID=""         ROBLOX_CLIENT_SECRET=""
+SPOTIFY_CLIENT_ID=""        SPOTIFY_CLIENT_SECRET=""
+TIKTOK_CLIENT_KEY=""        TIKTOK_CLIENT_SECRET=""   # TikTok uses CLIENT_KEY, not CLIENT_ID
+TWITCH_CLIENT_ID=""         TWITCH_CLIENT_SECRET=""
+TWITTER_CLIENT_ID=""        TWITTER_CLIENT_SECRET=""
 ```
 
 ---
@@ -140,9 +216,87 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 This pattern prevents multiple `PrismaClient` instances from being created during Next.js hot reloads in development.
 
+> **Prisma 7 note:** The generated client is output to `src/generated/prisma/` per the schema config. Always import from that path, not from `@prisma/client`.
+
 ---
 
-## Step 9 — Create `Dockerfile.dev`
+## Step 9 — Install Better Auth
+
+```sh
+bun add better-auth
+```
+
+---
+
+## Step 10 — Create `src/lib/auth.ts`
+
+This is the server-side Better Auth instance. Configure only the social providers you want to use — remove the rest.
+
+```ts
+import { betterAuth } from "better-auth";
+import { prismaAdapter } from "better-auth/adapters/prisma";
+import { prisma } from "@/lib/prisma";
+
+export const auth = betterAuth({
+  database: prismaAdapter(prisma, {
+    provider: "postgresql",
+  }),
+  emailAndPassword: {
+    enabled: true,
+  },
+  socialProviders: {
+    apple:     { clientId: process.env.APPLE_CLIENT_ID as string,     clientSecret: process.env.APPLE_CLIENT_SECRET as string },
+    discord:   { clientId: process.env.DISCORD_CLIENT_ID as string,   clientSecret: process.env.DISCORD_CLIENT_SECRET as string },
+    dropbox:   { clientId: process.env.DROPBOX_CLIENT_ID as string,   clientSecret: process.env.DROPBOX_CLIENT_SECRET as string },
+    facebook:  { clientId: process.env.FACEBOOK_CLIENT_ID as string,  clientSecret: process.env.FACEBOOK_CLIENT_SECRET as string },
+    github:    { clientId: process.env.GITHUB_CLIENT_ID as string,    clientSecret: process.env.GITHUB_CLIENT_SECRET as string },
+    gitlab:    { clientId: process.env.GITLAB_CLIENT_ID as string,    clientSecret: process.env.GITLAB_CLIENT_SECRET as string },
+    google:    { clientId: process.env.GOOGLE_CLIENT_ID as string,    clientSecret: process.env.GOOGLE_CLIENT_SECRET as string },
+    linkedin:  { clientId: process.env.LINKEDIN_CLIENT_ID as string,  clientSecret: process.env.LINKEDIN_CLIENT_SECRET as string },
+    microsoft: { clientId: process.env.MICROSOFT_CLIENT_ID as string, clientSecret: process.env.MICROSOFT_CLIENT_SECRET as string },
+    reddit:    { clientId: process.env.REDDIT_CLIENT_ID as string,    clientSecret: process.env.REDDIT_CLIENT_SECRET as string },
+    roblox:    { clientId: process.env.ROBLOX_CLIENT_ID as string,    clientSecret: process.env.ROBLOX_CLIENT_SECRET as string },
+    spotify:   { clientId: process.env.SPOTIFY_CLIENT_ID as string,   clientSecret: process.env.SPOTIFY_CLIENT_SECRET as string },
+    tiktok:    { clientKey: process.env.TIKTOK_CLIENT_KEY as string,  clientSecret: process.env.TIKTOK_CLIENT_SECRET as string },
+    twitch:    { clientId: process.env.TWITCH_CLIENT_ID as string,    clientSecret: process.env.TWITCH_CLIENT_SECRET as string },
+    twitter:   { clientId: process.env.TWITTER_CLIENT_ID as string,   clientSecret: process.env.TWITTER_CLIENT_SECRET as string },
+  },
+});
+
+export type Session = typeof auth.$Infer.Session;
+export type User = typeof auth.$Infer.Session.user;
+```
+
+---
+
+## Step 11 — Create `src/lib/auth-client.ts`
+
+```ts
+import { createAuthClient } from "better-auth/react";
+
+export const authClient = createAuthClient();
+
+export const { signIn, signOut, signUp, useSession, getSession } = authClient;
+```
+
+---
+
+## Step 12 — Create the catch-all API route
+
+Create `src/app/api/auth/[...all]/route.ts`:
+
+```ts
+import { auth } from "@/lib/auth";
+import { toNextJsHandler } from "better-auth/next-js";
+
+export const { GET, POST } = toNextJsHandler(auth);
+```
+
+---
+
+---
+
+## Step 13 — Create `Dockerfile.dev`
 
 ```dockerfile
 FROM oven/bun:1-alpine
@@ -161,7 +315,7 @@ CMD ["bun", "run", "dev"]
 
 ---
 
-## Step 10 — Create `docker-compose.dev.yml`
+## Step 14 — Create `docker-compose.dev.yml`
 
 ```yaml
 services:
@@ -212,7 +366,7 @@ Key points:
 
 ---
 
-## Step 11 — Add database scripts to `package.json`
+## Step 15 — Add database scripts to `package.json`
 
 ```json
 "scripts": {
@@ -231,13 +385,17 @@ Key points:
 
 ---
 
-## Step 12 — Verify the setup
+## Step 16 — Verify the setup
 
 ```sh
+# Copy and configure the env file
+cp .env.example .env
+# Fill in BETTER_AUTH_SECRET (openssl rand -base64 32) and any social provider credentials
+
 # Start only Postgres
 docker compose -f docker-compose.dev.yml up postgres -d
 
-# Generate Prisma client and run first migration
+# Run first migration (creates User, Session, Account, Verification tables)
 bun run db:migrate
 
 # Start the dev server
@@ -250,6 +408,7 @@ Open [http://localhost:3000](http://localhost:3000) — you should see the Next.
 
 ## What's next?
 
-- Add your first Prisma model in `prisma/schema.prisma` and run `bun run db:migrate`.
-- Install [better-auth](https://better-auth.com) for authentication: `bun add better-auth`.
+- Add your first custom Prisma model in `prisma/schema.prisma` and run `bun run db:migrate`.
 - Add server actions or API routes under `src/app/api/`.
+- Use `authClient.signIn.social({ provider: "github" })` on the client to trigger a social login flow.
+- Use `auth.api.getSession({ headers: await headers() })` in Server Components to read the current session.
