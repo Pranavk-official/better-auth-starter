@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { signIn } from "@/lib/auth-client";
 import { loginSchema, type LoginInput } from "@/lib/zod/auth.zod";
 import { Button } from "@/components/ui/button";
@@ -18,31 +19,50 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 
-export function LoginForm() {
+export function LoginForm({ redirectTo = "/landing" }: { redirectTo?: string }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { identifier: "", password: "" },
   });
 
   async function onGoogleSignIn() {
-    await signIn.social({ provider: "google", callbackURL: "/landing" });
+    await signIn.social({ provider: "google", callbackURL: redirectTo });
   }
 
-  async function onEmailSignIn(data: LoginInput) {
+  async function onCredentialsSignIn(data: LoginInput) {
     setError(null);
-    const result = await signIn.email({
-      email: data.email,
-      password: data.password,
-      callbackURL: "/landing",
-    });
+    setNotice(null);
+    const isEmail = data.identifier.includes("@");
+
+    const result = isEmail
+      ? await signIn.email({
+          email: data.identifier,
+          password: data.password,
+          callbackURL: redirectTo,
+        })
+      : await signIn.username({
+          username: data.identifier,
+          password: data.password,
+          callbackURL: redirectTo,
+        });
+
     if (result?.error) {
+      // Unverified accounts are rejected here; Better Auth has already
+      // re-sent the verification link (sendOnSignIn), so guide the user.
+      if (result.error.code === "EMAIL_NOT_VERIFIED") {
+        setNotice(
+          "Please verify your email first — we just sent you a fresh verification link.",
+        );
+        return;
+      }
       setError(result.error.message ?? "Invalid credentials");
       return;
     }
-    router.push("/landing");
+    router.push(redirectTo);
   }
 
   return (
@@ -52,6 +72,11 @@ export function LoginForm() {
         <CardDescription>Sign in to your account to continue</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
+        {notice && (
+          <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
+            {notice}
+          </p>
+        )}
         <Button
           type="button"
           variant="outline"
@@ -68,18 +93,18 @@ export function LoginForm() {
           <Separator className="flex-1" />
         </div>
 
-        <form onSubmit={form.handleSubmit(onEmailSignIn)} className="space-y-3">
+        <form onSubmit={form.handleSubmit(onCredentialsSignIn)} className="space-y-3">
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="identifier">Email or username</Label>
             <Input
-              id="email"
-              type="email"
-              placeholder="you@example.com"
-              {...form.register("email")}
+              id="identifier"
+              placeholder="you@example.com or yourname"
+              autoComplete="username"
+              {...form.register("identifier")}
             />
-            {form.formState.errors.email && (
+            {form.formState.errors.identifier && (
               <p className="text-xs text-destructive">
-                {form.formState.errors.email.message}
+                {form.formState.errors.identifier.message}
               </p>
             )}
           </div>
@@ -89,6 +114,7 @@ export function LoginForm() {
               id="password"
               type="password"
               placeholder="••••••••"
+              autoComplete="current-password"
               {...form.register("password")}
             />
             {form.formState.errors.password && (
@@ -106,6 +132,13 @@ export function LoginForm() {
             {form.formState.isSubmitting ? "Signing in…" : "Sign in"}
           </Button>
         </form>
+
+        <p className="text-center text-xs text-muted-foreground">
+          Don&apos;t have an account?{" "}
+          <Link href="/signup" className="underline underline-offset-4">
+            Sign up
+          </Link>
+        </p>
       </CardContent>
     </Card>
   );

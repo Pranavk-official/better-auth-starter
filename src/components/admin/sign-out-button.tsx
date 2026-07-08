@@ -11,7 +11,7 @@ export function AdminSignOutButton() {
       variant="outline"
       size="sm"
       onClick={() =>
-        signOut({ fetchOptions: { onSuccess: () => router.push("/admin/login") } })
+        signOut({ fetchOptions: { onSuccess: () => router.push("/login") } })
       }
     >
       Sign out

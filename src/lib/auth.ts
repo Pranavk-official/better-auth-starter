@@ -2,6 +2,7 @@ import { betterAuth } from "better-auth";
 import { admin, username } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
+import { sendEmail } from "@/lib/vendors/nodemailer";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
@@ -9,6 +10,36 @@ export const auth = betterAuth({
   }),
   emailAndPassword: {
     enabled: true,
+    // Block credential sign-in until the email is verified.
+    // (Social logins are already verified by their provider.)
+    requireEmailVerification: true,
+  },
+  emailVerification: {
+    // Send a verification link when a new account is created…
+    sendOnSignUp: true,
+    // …and re-send it if an unverified user tries to sign in.
+    sendOnSignIn: true,
+    // Sign the user in automatically once they click the link.
+    autoSignInAfterVerification: true,
+    // Link validity (seconds).
+    expiresIn: 60 * 60, // 1 hour
+    sendVerificationEmail: async ({ user, url }) => {
+      await sendEmail({
+        to: user.email,
+        subject: "Verify your email",
+        text: `Hi${user.name ? ` ${user.name}` : ""},
+
+Confirm your email address to finish setting up your account:
+
+${url}
+
+This link expires in 1 hour. If you didn't create an account, you can ignore this email.`,
+        html: `<p>Hi${user.name ? ` ${user.name}` : ""},</p>
+<p>Confirm your email address to finish setting up your account:</p>
+<p><a href="${url}">Verify my email</a></p>
+<p>This link expires in 1 hour. If you didn't create an account, you can ignore this email.</p>`,
+      });
+    },
   },
   socialProviders: {
     // ─── Configure only the providers you want to use ───────────────────────

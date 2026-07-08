@@ -20,6 +20,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.dev
+    command: sh -lc "bun install --frozen-lockfile && bun run db:generate && bunx next dev --webpack"
     restart: unless-stopped
     env_file:
       - .env
@@ -34,6 +35,7 @@ services:
       - .:/app
       - /app/node_modules
       - /app/.next
+      - /app/prisma/generated
     depends_on:
       postgres:
         condition: service_healthy
