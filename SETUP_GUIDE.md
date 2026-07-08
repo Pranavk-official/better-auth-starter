@@ -37,6 +37,15 @@ Flags used:
 | `--no-turbopack` | Use the standard webpack bundler |
 | `--import-alias "@/*"` | Alias `@/*` → `src/*` |
 
+Then add a second alias for the `prisma/` folder in `tsconfig.json`:
+
+```json
+"paths": {
+  "@/*": ["./src/*"],
+  "@prisma/*": ["./prisma/*"]
+}
+```
+
 ---
 
 ## Step 2 — Install Prisma and the pg driver adapter
@@ -70,7 +79,7 @@ Confirm the generator output path. In Prisma 7 the connection URL lives in `pris
 ```prisma
 generator client {
   provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  output   = "./generated"
 }
 
 datasource db {
@@ -154,7 +163,7 @@ Ensure `.env` files are excluded but `.env.example` is committed:
 !.env.example
 
 # Prisma generated client
-/src/generated/prisma
+/prisma/generated
 ```
 
 The `create-next-app` scaffold already adds `.env*`; just add the negation line and the generated client path.
@@ -198,7 +207,7 @@ TWITTER_CLIENT_ID=""        TWITTER_CLIENT_SECRET=""
 Create `src/lib/prisma.ts`:
 
 ```ts
-import { PrismaClient } from "../generated/prisma/client";
+import { PrismaClient } from "@prisma/generated/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
 
@@ -225,7 +234,7 @@ if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
 This pattern prevents multiple `PrismaClient` instances from being created during Next.js hot reloads in development.
 
-> **Prisma 7 note:** The generated client is output to `src/generated/prisma/` per the schema config. Always import from `../generated/prisma/client` (or `@/generated/prisma/client` with the path alias), not from `@prisma/client`. Prisma 7 also requires a driver adapter — `PrismaPg` wraps a `pg.Pool` to provide the SQL connection.
+> **Prisma 7 note:** The generated client is output to `prisma/generated/` per the schema config. Always import from `@prisma/generated/client` using the `@prisma/*` path alias (resolves to `prisma/*`). Prisma 7 also requires a driver adapter — `PrismaPg` wraps a `pg.Pool` to provide the SQL connection.
 
 ---
 
@@ -272,8 +281,7 @@ export const auth = betterAuth({
   },
 });
 
-export type Session = typeof auth.$Infer.Session;
-export type User = typeof auth.$Infer.Session.user;
+export type { Session, User } from "better-auth";
 ```
 
 ---

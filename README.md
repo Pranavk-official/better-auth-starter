@@ -6,8 +6,10 @@ A Next.js starter template with [Better Auth](https://better-auth.com), [Prisma]
 
 - **Framework** — [Next.js 16](https://nextjs.org) (App Router, TypeScript)
 - **Auth** — [Better Auth](https://better-auth.com) with email/password + 15 social providers
-- **Styling** — [Tailwind CSS v4](https://tailwindcss.com)
+- **Styling** — [Tailwind CSS v4](https://tailwindcss.com) + [shadcn/ui](https://ui.shadcn.com) (base-ui)
 - **ORM** — [Prisma 7](https://www.prisma.io) with PostgreSQL (via `@prisma/adapter-pg`)
+- **Forms** — [React Hook Form](https://react-hook-form.com) + [Zod](https://zod.dev)
+- **Data fetching** — [TanStack React Query v5](https://tanstack.com/query)
 - **Runtime / package manager** — [Bun](https://bun.sh)
 - **Local infrastructure** — Docker Compose (PostgreSQL 16)
 
@@ -109,38 +111,47 @@ All auth requests are handled by the catch-all route at `src/app/api/auth/[...al
 ### Server-side usage
 
 ```ts
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { getServerSession } from "@/lib/helpers";
 
-// Get the current session in a Server Component or Route Handler
-const session = await auth.api.getSession({ headers: await headers() });
-// session.user   — the authenticated user (or null)
-// session.session — the session object (or null)
+// In a Server Component or Route Handler (deduplicates across layout + page)
+const session = await getServerSession();
+// session?.user   — the authenticated user
+// session?.session — the session object
 ```
 
 ### Client-side usage
 
 ```tsx
-import { authClient } from "@/lib/auth-client";
+import { useAuth } from "@/context/auth";
+import { signIn, signOut } from "@/lib/auth-client";
+
+// Session from context (provided by Providers in root layout)
+const { session, isPending } = useAuth();
 
 // Email / password
-await authClient.signUp.email({ email, password, name });
-await authClient.signIn.email({ email, password });
+await signIn.email({ email, password, callbackURL: "/landing" });
 
-// Social sign-in (replace "github" with any configured provider)
-await authClient.signIn.social({ provider: "github" });
+// Social sign-in (Google is the primary provider)
+await signIn.social({ provider: "google", callbackURL: "/landing" });
 
 // Sign out
-await authClient.signOut();
-
-// React hook — re-renders when session changes
-const { data: session, isPending } = authClient.useSession();
+await signOut();
 ```
 
-### Exported types
+### API routes
+
+Route handlers live in `src/app/api/<module>/route.ts`. Use them instead of server actions when you need to serve external clients, handle webhooks, stream responses, or control HTTP status/headers directly.
 
 ```ts
-import type { Session, User } from "@/lib/auth";
+// src/app/api/example/route.ts
+import { NextResponse } from "next/server";
+import { getServerSession } from "@/lib/helpers";
+
+export async function GET() {
+  const session = await getServerSession();
+  if (!session) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  return NextResponse.json({ user: session.user });
+}
 ```
 
 ## Database scripts
@@ -158,26 +169,56 @@ bun run db:seed           # run the seed script
 
 ```
 better-auth-starter/
-├── docker-compose.dev.yml          # local dev stack (app + postgres)
-├── Dockerfile.dev                  # dev image for the Next.js app
+├── docker-compose.dev.yml
+├── Dockerfile.dev
 ├── prisma/
-│   └── schema.prisma               # database schema (User, Session, Account, Verification + your models)
-├── prisma.config.ts                # Prisma CLI configuration
+│   ├── schema.prisma               # database schema
+│   ├── generated/                  # auto-generated Prisma client (gitignored)
+│   └── migrations/
+├── prisma.config.ts
 ├── src/
+│   ├── actions/
+│   │   └── profile/
+│   │       └── index.ts            # updateProfile server action
 │   ├── app/
-│   │   ├── api/
-│   │   │   └── auth/
-│   │   │       └── [...all]/
-│   │   │           └── route.ts    # Better Auth catch-all handler
-│   │   └── ...                     # Next.js App Router pages
-│   ├── generated/
-│   │   └── prisma/                 # auto-generated Prisma client (gitignored)
+│   │   ├── (auth)/
+│   │   │   ├── layout.tsx          # redirects to /landing if already logged in
+│   │   │   └── login/page.tsx
+│   │   ├── (public)/
+│   │   │   ├── layout.tsx          # wraps with Navbar
+│   │   │   └── landing/page.tsx
+│   │   ├── (profile)/
+│   │   │   ├── layout.tsx          # protected — redirects to /login if no session
+│   │   │   ├── view/page.tsx
+│   │   │   └── edit/page.tsx
+│   │   ├── api/auth/[...all]/
+│   │   │   └── route.ts            # Better Auth catch-all handler
+│   │   ├── globals.css
+│   │   ├── layout.tsx              # root layout — mounts Providers
+│   │   └── page.tsx                # redirects to /landing
+│   ├── components/
+│   │   ├── auth/                   # login-form + index.ts
+│   │   ├── profile/                # edit-form + index.ts
+│   │   ├── shared/                 # navbar, providers + index.ts
+│   │   └── ui/                     # shadcn/ui components
+│   ├── context/
+│   │   └── auth.tsx                # AuthProvider + useAuth() hook
 │   └── lib/
-│       ├── auth.ts                 # Better Auth server instance + type exports
+│       ├── auth.ts                 # Better Auth server instance
 │       ├── auth-client.ts          # Better Auth React client
-│       └── prisma.ts               # Prisma client singleton
-└── .env.example                    # environment variable template
+│       ├── helpers/                # getServerSession() + index.ts
+│       ├── prisma.ts               # Prisma client singleton
+│       ├── utils.ts                # cn() utility
+│       └── zod/                    # auth.zod.ts, profile.zod.ts
+└── .env.example
 ```
+
+## Path aliases
+
+| Alias | Resolves to |
+|---|---|
+| `@/*` | `src/*` |
+| `@prisma/*` | `prisma/*` |
 
 ## Adding a database model
 

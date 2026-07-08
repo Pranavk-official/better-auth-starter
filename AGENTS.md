@@ -19,7 +19,7 @@ This is **better-auth-starter** — a Next.js 16 (App Router) starter with Bette
 ## Prisma
 
 - Schema lives in `prisma/schema.prisma`. Prisma CLI config is in `prisma.config.ts`.
-- The generated client is output to `src/generated/prisma/` — **this directory is gitignored**. Always run `bun run db:generate` after pulling schema changes.
+- The generated client is output to `prisma/generated/` — **this directory is gitignored**. Always run `bun run db:generate` after pulling schema changes.
 - **Prisma 7 requires a driver adapter.** The singleton in `src/lib/prisma.ts` creates a `pg.Pool` and wraps it with `PrismaPg` from `@prisma/adapter-pg`. Never call `new PrismaClient()` without the `adapter` option.
 - Import the Prisma singleton (never instantiate `PrismaClient` directly in application code):
   ```ts
@@ -27,7 +27,7 @@ This is **better-auth-starter** — a Next.js 16 (App Router) starter with Bette
   ```
 - Import types from the generated client path:
   ```ts
-  import type { User } from "@/generated/prisma/client";
+  import type { User } from "@prisma/generated/client";
   ```
 - After editing the schema run `bun run db:migrate` (dev) or `bun run db:migrate:deploy` (prod/CI).
 - Never run raw `prisma` commands — always go through the `bun run db:*` scripts defined in `package.json`.
@@ -45,15 +45,23 @@ This is **better-auth-starter** — a Next.js 16 (App Router) starter with Bette
 - React client lives in `src/lib/auth-client.ts` — export is named `authClient` with individual method exports (`signIn`, `signOut`, `signUp`, `useSession`, `getSession`).
 - The catch-all API route is `src/app/api/auth/[...all]/route.ts`.
 - Session types are exported from `src/lib/auth.ts` as `Session` and `User`.
-- To get the session server-side: `auth.api.getSession({ headers: await headers() })`.
+- To get the session server-side: use `getServerSession()` from `@/lib/helpers` (wraps `auth.api.getSession` with React `cache()` for deduplication).
 - To sign in client-side: `authClient.signIn.social({ provider: "<id>" })` or `authClient.signIn.email({ email, password })`.
 - When adding a new social provider, add it to the `socialProviders` block in `src/lib/auth.ts` and document the env vars in `.env.example`.
 
 ## Code conventions
 
 - All source files live under `src/`.
-- Path alias `@/*` resolves to `src/*`.
+- Path alias `@/*` resolves to `src/*`. Path alias `@prisma/*` resolves to `prisma/*`.
 - Tailwind CSS v4 is used — no `tailwind.config.*` file; configuration lives in `globals.css`.
+- shadcn/ui components use `@base-ui/react` (not Radix). Use `render` prop for polymorphism instead of `asChild`.
+- React Query (`@tanstack/react-query`) is set up via `Providers` in `src/components/shared/providers.tsx`. Use `useMutation` for server action calls.
+- Auth context is in `src/context/auth.tsx` — use `useAuth()` in client components instead of calling `useSession` directly.
+- Zod validation schemas live in `src/lib/zod/<module>.zod.ts`.
+- Server actions live in `src/actions/<module>/index.ts`.
+- API route handlers live in `src/app/api/<module>/route.ts`. Use route handlers (not server actions) for: endpoints consumed by external clients, webhooks, file uploads, streaming responses, or when you need full control over the HTTP response. Always verify the session inside every route handler — they are reachable via direct HTTP requests.
+- Shared components live in `src/components/shared/`, module components in `src/components/<module>/`. Both export through `index.ts`.
+- Route groups: `(auth)` for login/auth pages, `(public)` for unauthenticated-accessible pages, `(profile)` for protected profile pages.
 - TypeScript strict mode is enabled. Do not use `any` unless absolutely unavoidable.
 - Do not add `console.log` statements to committed code.
 <!-- END:project-rules -->
