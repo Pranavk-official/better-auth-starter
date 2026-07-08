@@ -1,7 +1,6 @@
 import { headers } from "next/headers";
 import { auth } from "@/lib/auth";
 import { getServerSession } from "@/lib/helpers";
-import { signOut } from "@/lib/auth-client";
 import {
   Card,
   CardContent,
