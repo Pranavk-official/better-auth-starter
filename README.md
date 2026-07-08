@@ -230,6 +230,14 @@ better-auth-starter/
 import { prisma } from "@/lib/prisma";
 ```
 
+## Agent customization
+
+Agent instructions live in [AGENTS.md](./AGENTS.md). Reusable skills live in `.agents/skills/`.
+
+| Skill | What it does | Invoke |
+|-------|-------------|--------|
+| [caveman](.agents/skills/caveman/README.md) | Compresses model responses ~65% by speaking like a caveman. Full technical accuracy preserved. Six intensity levels: `lite`, `full` (default), `ultra`, `wenyan-lite`, `wenyan-full`, `wenyan-ultra`. | `/caveman`, `/caveman lite`, `/caveman ultra`, `stop caveman` |
+
 ## Recreating from scratch
 
 See [SETUP_GUIDE.md](./SETUP_GUIDE.md) for a full step-by-step walkthrough.

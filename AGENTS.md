@@ -62,6 +62,18 @@ This is **better-auth-starter** — a Next.js 16 (App Router) starter with Bette
 - API route handlers live in `src/app/api/<module>/route.ts`. Use route handlers (not server actions) for: endpoints consumed by external clients, webhooks, file uploads, streaming responses, or when you need full control over the HTTP response. Always verify the session inside every route handler — they are reachable via direct HTTP requests.
 - Shared components live in `src/components/shared/`, module components in `src/components/<module>/`. Both export through `index.ts`.
 - Route groups: `(auth)` for login/auth pages, `(public)` for unauthenticated-accessible pages, `(profile)` for protected profile pages.
+- Admin area lives at `src/app/admin/` — login page at `admin/login/page.tsx` (no guard), protected pages inside `admin/(protected)/` (layout checks `role === "admin"`).
+- Admin components live in `src/components/admin/` and export through `index.ts`.
 - TypeScript strict mode is enabled. Do not use `any` unless absolutely unavoidable.
 - Do not add `console.log` statements to committed code.
 <!-- END:project-rules -->
+
+<!-- BEGIN:skills -->
+## Skills
+
+Reusable behaviour packs live in `.agents/skills/<name>/SKILL.md`. Load the relevant file with `read_file` when the trigger fires — do not guess the rules from the README.
+
+| Skill | Trigger | Path |
+|-------|---------|------|
+| **caveman** | User says "caveman mode", "talk like caveman", "use caveman", "less tokens", "be brief", or types `/caveman` | `.agents/skills/caveman/SKILL.md` |
+<!-- END:skills -->
