@@ -20,7 +20,7 @@ interface SignOutConfirmProps {
 export const SignOutConfirm = ({
   open,
   onOpenChange,
-  redirectTo = "/landing",
+  redirectTo = "/",
 }: SignOutConfirmProps) => {
   const router = useRouter();
   const [pending, setPending] = useState(false);

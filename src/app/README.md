@@ -11,11 +11,11 @@ segment.
 |--------------|-----|-------|
 | `(auth)/login` | `/login` | Unified sign-in (email **or** username + password, + Google). Reads `?redirect=`. |
 | `(auth)/signup` | `/signup` | Registration (name, username, email, password, + Google). Creates `role: "user"`. |
-| `(public)/landing` | `/landing` | Reachable without a session. |
+| `(public)` | `/` | Landing page (index) — reachable without a session. |
 | `profile/view` | `/profile/view` | Protected — `profile/layout.tsx` redirects to `/login` when unauthenticated. |
 | `profile/edit` | `/profile/edit` | Protected profile editing. |
 | `admin/login` | — | **Removed.** Admins sign in at `/login`; the guard redirects there. |
-| `admin/(protected)` | `/admin` | Admin **dashboard** (index). `requireAdmin()` in `admin/(protected)/layout.tsx` guards the whole group; non-admins → `/landing`. |
+| `admin/(protected)` | `/admin` | Admin **dashboard** (index). `requireAdmin()` in `admin/(protected)/layout.tsx` guards the whole group; non-admins → `/`. |
 | `admin/(protected)/users` | `/admin/users` | User management. |
 | `admin/(protected)/audit` | `/admin/audit` | Audit log. |
 | `api/admin/dashboard\|users\|audit` | `/api/admin/*` | GET route handlers backing the admin pages (guarded by `getAdminSession()`, 403 otherwise). |

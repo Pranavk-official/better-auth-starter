@@ -7,6 +7,6 @@ export default async function AuthLayout({
   children: React.ReactNode;
 }) {
   const session = await getServerSession();
-  if (session) redirect("/landing");
+  if (session) redirect("/");
   return <>{children}</>;
 }

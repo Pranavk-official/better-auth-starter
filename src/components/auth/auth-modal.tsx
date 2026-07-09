@@ -11,7 +11,7 @@ import { AuthForm } from "./auth-form";
 export const AuthModal = ({
   trigger,
   defaultTab = "signin",
-  redirectTo = "/landing",
+  redirectTo = "/",
 }: AuthModalProps) => (
   <Dialog>
     <DialogTrigger render={trigger as React.ReactElement} />

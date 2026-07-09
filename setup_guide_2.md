@@ -393,7 +393,7 @@ import { getServerSession } from "@/lib/helpers";
 
 const AuthLayout = async ({ children }: { children: React.ReactNode }) => {
   const session = await getServerSession();
-  if (session) redirect("/landing");
+  if (session) redirect("/");
   return <>{children}</>;
 };
 
@@ -449,7 +449,7 @@ import { GoogleButton } from "./google-button";
 import { SignInForm } from "./sign-in-form";
 import { SignUpForm } from "./sign-up-form";
 
-export const AuthForm = ({ defaultTab = "signin", redirectTo = "/landing", className }: AuthFormProps) => {
+export const AuthForm = ({ defaultTab = "signin", redirectTo = "/", className }: AuthFormProps) => {
   const [tab, setTab] = useState<AuthTab>(defaultTab);
   return (
     <Card className={cn("w-full max-w-sm", className)}>
@@ -478,7 +478,7 @@ const LoginPage = async ({
   searchParams: Promise<{ redirect?: string }>;
 }) => {
   const { redirect } = await searchParams;
-  const redirectTo = redirect?.startsWith("/") ? redirect : "/landing"; // no open redirect
+  const redirectTo = redirect?.startsWith("/") ? redirect : "/"; // no open redirect
   return (
     <div className="min-h-screen flex items-center justify-center bg-background">
       <AuthForm defaultTab="signin" redirectTo={redirectTo} />
@@ -534,7 +534,7 @@ export const SignUpForm = ({ onDone }: SignUpFormProps) => {
 
   const onSubmit = async (data: SignupInput) => {
     setError(null);
-    const result = await signUp.email({ ...data, callbackURL: "/landing" });
+    const result = await signUp.email({ ...data, callbackURL: "/" });
     if (result?.error) { setError(result.error.message ?? "Could not create account"); return; }
     setSubmittedEmail(data.email); // 👈 "check your inbox" screen, no redirect
   };
@@ -583,7 +583,7 @@ import type { AuthModalProps } from "@/lib/types";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
 import { AuthForm } from "./auth-form";
 
-export const AuthModal = ({ trigger, defaultTab = "signin", redirectTo = "/landing" }: AuthModalProps) => (
+export const AuthModal = ({ trigger, defaultTab = "signin", redirectTo = "/" }: AuthModalProps) => (
   <Dialog>
     <DialogTrigger render={trigger as React.ReactElement} />
     <DialogContent><AuthForm defaultTab={defaultTab} redirectTo={redirectTo} /></DialogContent>
@@ -668,7 +668,7 @@ export const requireAdmin = cache(async () => {
   if (!session) redirect("/login?redirect=/admin");
   const user = session.user as typeof session.user & { role?: UserRole | null; banned?: boolean | null };
   if (user.banned) redirect("/login");
-  if (user.role !== UserRole.admin) redirect("/landing");
+  if (user.role !== UserRole.admin) redirect("/");
   return session;
 });
 ```
@@ -854,7 +854,7 @@ Then walk the flow:
 1. **Sign up** at `/signup` (or the navbar **Sign in** modal → Sign up tab) → "check your email" screen (no session yet).
 2. **Grab the link** — from your inbox, or (no SMTP) from the server console:
    `[email] SMTP_HOST not set … http://localhost:3000/api/auth/verify-email?token=…`
-3. **Open the link** → verified, auto-signed-in, redirected to `/landing`.
+3. **Open the link** → verified, auto-signed-in, redirected to `/`.
 4. **Log in** at `/login` with email *or* username (or Google).
 5. **Admin:** `bun run make:admin you@example.com`, sign out/in, then visit
    `/admin` (stats + recent logins), `/admin/users` (change role /

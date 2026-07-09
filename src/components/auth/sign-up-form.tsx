@@ -28,7 +28,7 @@ export const SignUpForm = ({ onDone }: SignUpFormProps) => {
       username: data.username,
       email: data.email,
       password: data.password,
-      callbackURL: "/landing",
+      callbackURL: "/",
     });
     if (result?.error) {
       setError(result.error.message ?? "Could not create account");

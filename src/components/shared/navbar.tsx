@@ -29,7 +29,7 @@ export const Navbar = () => {
   return (
     <header className="border-b">
       <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4">
-        <Link href="/landing" className="text-sm font-semibold">
+        <Link href="/" className="text-sm font-semibold">
           better-auth-starter
         </Link>
         {session ? (
@@ -84,13 +84,13 @@ export const Navbar = () => {
             <SignOutConfirm
               open={signOutOpen}
               onOpenChange={setSignOutOpen}
-              redirectTo="/landing"
+              redirectTo="/"
             />
           </>
         ) : (
           <AuthModal
             trigger={
-              <Button variant="default" size="icon-lg">
+              <Button variant="default" size="sm">
                 Sign in
               </Button>
             }

@@ -22,7 +22,7 @@ import { SignUpForm } from "./sign-up-form";
  */
 export const AuthForm = ({
   defaultTab = "signin",
-  redirectTo = "/landing",
+  redirectTo = "/",
   className,
 }: AuthFormProps) => {
   const [tab, setTab] = useState<AuthTab>(defaultTab);

@@ -24,7 +24,7 @@ export const requireAdmin = cache(async () => {
 
   const user = session.user as typeof session.user & AuthedUser;
   if (user.banned) redirect("/login");
-  if (user.role !== UserRole.admin) redirect("/landing");
+  if (user.role !== UserRole.admin) redirect("/");
 
   return session;
 });

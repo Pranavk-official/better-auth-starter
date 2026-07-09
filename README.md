@@ -142,10 +142,10 @@ import { signIn, signOut } from "@/lib/auth-client";
 const { session, isPending } = useAuth();
 
 // Email / password
-await signIn.email({ email, password, callbackURL: "/landing" });
+await signIn.email({ email, password, callbackURL: "/" });
 
 // Social sign-in (Google is the primary provider)
-await signIn.social({ provider: "google", callbackURL: "/landing" });
+await signIn.social({ provider: "google", callbackURL: "/" });
 
 // Sign out
 await signOut();
@@ -195,11 +195,11 @@ better-auth-starter/
 │   │   └── admin/                  # setUserRole, banUser, unbanUser, deleteUser
 │   ├── app/
 │   │   ├── (auth)/
-│   │   │   ├── layout.tsx          # redirects to /landing if already logged in
+│   │   │   ├── layout.tsx          # redirects to / if already logged in
 │   │   │   └── login/page.tsx
 │   │   ├── (public)/
 │   │   │   ├── layout.tsx          # wraps with Navbar
-│   │   │   └── landing/page.tsx
+│   │   │   └── page.tsx            # landing — served at /
 │   │   ├── (profile)/
 │   │   │   ├── layout.tsx          # protected — redirects to /login if no session
 │   │   │   ├── view/page.tsx
@@ -213,8 +213,7 @@ better-auth-starter/
 │   │   │   ├── profile/route.ts    # GET signed-in profile
 │   │   │   └── auth/[...all]/route.ts  # Better Auth catch-all handler
 │   │   ├── globals.css
-│   │   ├── layout.tsx              # root layout — mounts Providers
-│   │   └── page.tsx                # redirects to /landing
+│   │   └── layout.tsx              # root layout — mounts Providers
 │   ├── components/
 │   │   ├── admin/                  # sidebar, *-view (React Query), users-table, row-actions, stat-card, audit-list
 │   │   ├── auth/                   # auth-form (tabs) + auth-modal, sign-in/up-form, google-button
