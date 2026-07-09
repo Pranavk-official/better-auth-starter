@@ -1,0 +1,15 @@
+node_modules
+.next
+.git
+.env
+prisma/generated
+Dockerfile*
+docker-compose*
+.dockerignore
+README.md
+SETUP_GUIDE.md
+setup_guide_2.md
+.claude
+.agents
+npm-debug.log*
+*.log

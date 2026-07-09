@@ -31,3 +31,7 @@ external clients, webhooks, file uploads, or streaming responses.
 ## Existing modules
 
 - `profile/` — `updateProfile()` updates the signed-in user's name/image.
+- `admin/` — `setUserRole`, `banUser`, `unbanUser`, `deleteUser`. Each
+  `await requireAdmin()`, calls the Better Auth admin API, writes an audit entry
+  (`@/lib/audit`), and revalidates the admin routes. Admins can't act on their
+  own account.

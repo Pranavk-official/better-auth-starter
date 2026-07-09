@@ -3,19 +3,17 @@
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { profileSchema, type ProfileInput } from "@/lib/zod/profile.zod";
 import { updateProfile } from "@/actions/profile";
+import type { EditProfileFormProps } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-interface EditProfileFormProps {
-  defaultValues: ProfileInput;
-}
-
-export function EditProfileForm({ defaultValues }: EditProfileFormProps) {
+export const EditProfileForm = ({ defaultValues }: EditProfileFormProps) => {
   const router = useRouter();
+  const queryClient = useQueryClient();
 
   const form = useForm<ProfileInput>({
     resolver: zodResolver(profileSchema),
@@ -24,7 +22,10 @@ export function EditProfileForm({ defaultValues }: EditProfileFormProps) {
 
   const { mutate, isPending, error } = useMutation({
     mutationFn: (data: ProfileInput) => updateProfile(data),
-    onSuccess: () => router.push("/profile/view"),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["profile"] });
+      router.push("/profile/view");
+    },
   });
 
   return (
@@ -65,4 +66,4 @@ export function EditProfileForm({ defaultValues }: EditProfileFormProps) {
       </div>
     </form>
   );
-}
+};

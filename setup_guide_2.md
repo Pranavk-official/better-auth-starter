@@ -11,7 +11,7 @@ By the end of Part 2 you'll have added, from scratch:
   **`/signup`** page.
 - **Email verification** over SMTP (Nodemailer), required for password accounts.
 - **Profile pages** (`/profile/view`, `/profile/edit`) backed by a server action.
-- A **role-gated admin area** (`/admin/dashboard`) plus two ways to mint an admin.
+- A **role-gated admin area** (`/admin`) plus two ways to mint an admin.
 - The supporting layers: React Query + auth context, Zod schemas, and the
   `src/lib/vendors/` convention for third-party integrations.
 
@@ -25,6 +25,9 @@ By the end of Part 2 you'll have added, from scratch:
 # App-layer libraries
 bun add @tanstack/react-query react-hook-form @hookform/resolvers zod
 
+# Icons (used by the Google button, password reveal, dialog close, …)
+bun add react-icons
+
 # Email transport (a third-party "vendor")
 bun add nodemailer
 bun add -D @types/nodemailer
@@ -32,6 +35,11 @@ bun add -D @types/nodemailer
 # shadcn/ui primitives (base-ui variant) used by the forms & pages
 bunx shadcn@latest add avatar button card dropdown-menu input label separator
 ```
+
+> `tabs` and `dialog` aren't in the shadcn base-ui registry yet — the auth
+> surface ships hand-written wrappers over `@base-ui/react` at
+> `src/components/ui/tabs.tsx` and `src/components/ui/dialog.tsx`, plus a
+> `password-input.tsx` with a `react-icons` show/hide toggle.
 
 ---
 
@@ -357,7 +365,25 @@ Social logins (Google) skip this — the provider already verified the address.
 
 ---
 
-## Step 10 — The unified login page
+## Step 10 — The unified auth surface
+
+One `AuthForm` (shadcn `Tabs` switching **Sign in / Sign up**) backs both the
+`/login` and `/signup` pages **and** a navbar modal. Each piece is its own
+arrow-function component; shared prop types live in `src/lib/types`.
+
+Shared types — `src/lib/types/auth.ts` (barrel-exported from
+`src/lib/types/index.ts`, imported via `@/lib/types`):
+
+```ts
+import type { ReactNode } from "react";
+
+export type AuthTab = "signin" | "signup";
+export interface AuthFormProps { defaultTab?: AuthTab; redirectTo?: string; className?: string; }
+export interface AuthModalProps { trigger: ReactNode; defaultTab?: AuthTab; redirectTo?: string; }
+export interface GoogleButtonProps { redirectTo: string; }
+export interface SignInFormProps { redirectTo: string; }
+export interface SignUpFormProps { onDone: () => void; }
+```
 
 Create the `(auth)` layout that bounces signed-in users, `src/app/(auth)/layout.tsx`:
 
@@ -365,58 +391,41 @@ Create the `(auth)` layout that bounces signed-in users, `src/app/(auth)/layout.
 import { redirect } from "next/navigation";
 import { getServerSession } from "@/lib/helpers";
 
-export default async function AuthLayout({ children }: { children: React.ReactNode }) {
+const AuthLayout = async ({ children }: { children: React.ReactNode }) => {
   const session = await getServerSession();
   if (session) redirect("/landing");
   return <>{children}</>;
-}
+};
+
+export default AuthLayout;
 ```
 
-`src/app/(auth)/login/page.tsx` — reads a sanitized `?redirect=` and passes it down:
+Split components under `src/components/auth/` — each in its own file:
+
+- **`google-button.tsx`** — `react-icons` `FcGoogle` + `signIn.social({ provider: "google" })`.
+- **`sign-in-form.tsx`** — accepts email **or** username, handles `EMAIL_NOT_VERIFIED`.
+- **`sign-up-form.tsx`** — creates the account, then shows a "check your email" state (verification means no session yet).
+- **`auth-form.tsx`** — Google button + `Tabs` wiring the two forms.
+- **`auth-modal.tsx`** — the same `AuthForm` inside a `Dialog`.
 
 ```tsx
-import { LoginForm } from "@/components/auth";
-
-export default async function LoginPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ redirect?: string }>;
-}) {
-  const { redirect } = await searchParams;
-  const redirectTo = redirect?.startsWith("/") ? redirect : "/landing"; // no open redirect
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <LoginForm redirectTo={redirectTo} />
-    </div>
-  );
-}
-```
-
-`src/components/auth/login-form.tsx` — the important logic (full Tailwind markup
-lives in the repo). It accepts email **or** username, and handles the
-"not verified" case:
-
-```tsx
+// src/components/auth/sign-in-form.tsx (core logic)
 "use client";
-// imports: react-hook-form, zodResolver, useRouter, Link, signIn, loginSchema, ui…
+import type { SignInFormProps } from "@/lib/types";
+import { PasswordInput } from "@/components/ui/password-input"; // eye-toggle field
 
-export function LoginForm({ redirectTo = "/landing" }: { redirectTo?: string }) {
+export const SignInForm = ({ redirectTo }: SignInFormProps) => {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const form = useForm<LoginInput>({ resolver: zodResolver(loginSchema), /* … */ });
 
-  async function onGoogleSignIn() {
-    await signIn.social({ provider: "google", callbackURL: redirectTo });
-  }
-
-  async function onCredentialsSignIn(data: LoginInput) {
+  const onSubmit = async (data: LoginInput) => {
     setError(null); setNotice(null);
     const isEmail = data.identifier.includes("@");
     const result = isEmail
       ? await signIn.email({ email: data.identifier, password: data.password, callbackURL: redirectTo })
       : await signIn.username({ username: data.identifier, password: data.password, callbackURL: redirectTo });
-
     if (result?.error) {
       if (result.error.code === "EMAIL_NOT_VERIFIED") {
         setNotice("Please verify your email first — we just sent a fresh link.");
@@ -426,66 +435,160 @@ export function LoginForm({ redirectTo = "/landing" }: { redirectTo?: string }) 
       return;
     }
     router.push(redirectTo);
-  }
-  // …render: notice banner, Google button, identifier + password fields, link to /signup
-}
+  };
+  // …render: notice banner, identifier + <PasswordInput> fields
+};
 ```
 
-Export it from `src/components/auth/index.ts`:
+```tsx
+// src/components/auth/auth-form.tsx — the tabs shell
+"use client";
+import type { AuthFormProps, AuthTab } from "@/lib/types";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GoogleButton } from "./google-button";
+import { SignInForm } from "./sign-in-form";
+import { SignUpForm } from "./sign-up-form";
+
+export const AuthForm = ({ defaultTab = "signin", redirectTo = "/landing", className }: AuthFormProps) => {
+  const [tab, setTab] = useState<AuthTab>(defaultTab);
+  return (
+    <Card className={cn("w-full max-w-sm", className)}>
+      {/* header + <GoogleButton redirectTo={redirectTo} /> + "or" divider */}
+      <Tabs value={tab} onValueChange={(v) => setTab(v as AuthTab)}>
+        <TabsList>
+          <TabsTrigger value="signin">Sign in</TabsTrigger>
+          <TabsTrigger value="signup">Sign up</TabsTrigger>
+        </TabsList>
+        <TabsContent value="signin"><SignInForm redirectTo={redirectTo} /></TabsContent>
+        <TabsContent value="signup"><SignUpForm onDone={() => setTab("signin")} /></TabsContent>
+      </Tabs>
+    </Card>
+  );
+};
+```
+
+`src/app/(auth)/login/page.tsx` — reads a sanitized `?redirect=` and defaults the tab:
+
+```tsx
+import { AuthForm } from "@/components/auth";
+
+const LoginPage = async ({
+  searchParams,
+}: {
+  searchParams: Promise<{ redirect?: string }>;
+}) => {
+  const { redirect } = await searchParams;
+  const redirectTo = redirect?.startsWith("/") ? redirect : "/landing"; // no open redirect
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <AuthForm defaultTab="signin" redirectTo={redirectTo} />
+    </div>
+  );
+};
+
+export default LoginPage;
+```
+
+Export everything from `src/components/auth/index.ts`:
 
 ```ts
-export * from "./login-form";
-export * from "./signup-form";
+export * from "./auth-form";
+export * from "./auth-modal";
+export * from "./google-button";
+export * from "./sign-in-form";
+export * from "./sign-up-form";
 ```
 
 ---
 
-## Step 11 — The signup page
+## Step 11 — Signup, the password field, and the modal
 
-`src/app/(auth)/signup/page.tsx`:
+The signup page **reuses the same `AuthForm`**, just defaulting to the signup
+tab — `src/app/(auth)/signup/page.tsx`:
 
 ```tsx
-import { SignupForm } from "@/components/auth";
+import { AuthForm } from "@/components/auth";
 
-export default function SignupPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <SignupForm />
-    </div>
-  );
-}
+const SignupPage = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <AuthForm defaultTab="signup" />
+  </div>
+);
+
+export default SignupPage;
 ```
 
-`src/components/auth/signup-form.tsx` — core logic. Because verification is
-required, signup creates **no session**; show a "check your email" state:
+`sign-up-form.tsx` core logic — verification is required, so signup creates
+**no session**; show a "check your email" state and offer to jump back to the
+sign-in tab via the `onDone` prop:
 
 ```tsx
 "use client";
-// imports: react-hook-form, zodResolver, Link, signIn, signUp, signupSchema, ui…
+import type { SignUpFormProps } from "@/lib/types";
+import { PasswordInput } from "@/components/ui/password-input";
 
-export function SignupForm() {
+export const SignUpForm = ({ onDone }: SignUpFormProps) => {
   const [error, setError] = useState<string | null>(null);
   const [submittedEmail, setSubmittedEmail] = useState<string | null>(null);
   const form = useForm<SignupInput>({ resolver: zodResolver(signupSchema), /* … */ });
 
-  async function onSubmit(data: SignupInput) {
+  const onSubmit = async (data: SignupInput) => {
     setError(null);
-    const result = await signUp.email({
-      name: data.name,
-      username: data.username,
-      email: data.email,
-      password: data.password,
-      callbackURL: "/landing",
-    });
+    const result = await signUp.email({ ...data, callbackURL: "/landing" });
     if (result?.error) { setError(result.error.message ?? "Could not create account"); return; }
     setSubmittedEmail(data.email); // 👈 "check your inbox" screen, no redirect
-  }
+  };
 
   if (submittedEmail) {
-    return (/* Card: "Check your email — we sent a link to {submittedEmail}" */);
+    return (/* "Check your email — sent to {submittedEmail}", <button onClick={onDone}> to sign in */);
   }
-  // …render: Google button, name/username/email/password fields, link to /login
-}
+  // …render: name/username/email fields + <PasswordInput> (eye toggle)
+};
+```
+
+**Password reveal** — `src/components/ui/password-input.tsx` wraps the shadcn
+`Input`, flips `type` between `password`/`text`, and toggles a `react-icons`
+`LuEye`/`LuEyeOff` button. It forwards every native input prop (including the
+`ref` from `register`), so forms use it as a drop-in:
+
+```tsx
+"use client";
+import { useState } from "react";
+import { LuEye, LuEyeOff } from "react-icons/lu";
+import { Input } from "@/components/ui/input";
+
+export const PasswordInput = ({ className, ...props }: React.ComponentProps<"input">) => {
+  const [visible, setVisible] = useState(false);
+  return (
+    <div className="relative">
+      <Input type={visible ? "text" : "password"} className={cn("pr-9", className)} {...props} />
+      <button type="button" onClick={() => setVisible((v) => !v)}
+        aria-label={visible ? "Hide password" : "Show password"}
+        className="absolute inset-y-0 right-0 flex items-center px-2.5 text-muted-foreground hover:text-foreground">
+        {visible ? <LuEyeOff className="h-4 w-4" /> : <LuEye className="h-4 w-4" />}
+      </button>
+    </div>
+  );
+};
+```
+
+**Navbar modal** — `auth-modal.tsx` drops the same `AuthForm` into a `Dialog`;
+the navbar renders `<AuthModal trigger={<Button>Sign in</Button>} />` instead of
+linking to `/login`, so unauthenticated users get the auth surface without
+leaving the page:
+
+```tsx
+"use client";
+import type { AuthModalProps } from "@/lib/types";
+import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { AuthForm } from "./auth-form";
+
+export const AuthModal = ({ trigger, defaultTab = "signin", redirectTo = "/landing" }: AuthModalProps) => (
+  <Dialog>
+    <DialogTrigger render={trigger as React.ReactElement} />
+    <DialogContent><AuthForm defaultTab={defaultTab} redirectTo={redirectTo} /></DialogContent>
+  </Dialog>
+);
 ```
 
 ---
@@ -552,39 +655,122 @@ Add `view/page.tsx` (reads `session.user`) and `edit/page.tsx` (renders
 
 ---
 
-## Step 13 — The admin area
+## Step 13 — The admin area (RBAC, audit trail, user management)
 
-Gate it in `src/app/admin/(protected)/layout.tsx`:
+**RBAC guard** — one reusable helper in `src/lib/helpers/session.ts`. Never
+scatter `role === "admin"` string checks:
 
-```tsx
-import { redirect } from "next/navigation";
-import { getServerSession } from "@/lib/helpers";
+```ts
+import { UserRole } from "@prisma/generated/client";
 
-export default async function AdminProtectedLayout({ children }: { children: React.ReactNode }) {
+export const requireAdmin = cache(async () => {
   const session = await getServerSession();
-  if (!session) redirect("/login?redirect=/admin/dashboard");
-  if ((session.user as { role?: string }).role !== "admin") redirect("/landing");
-  return <>{children}</>;
-}
+  if (!session) redirect("/login?redirect=/admin");
+  const user = session.user as typeof session.user & { role?: UserRole | null; banned?: boolean | null };
+  if (user.banned) redirect("/login");
+  if (user.role !== UserRole.admin) redirect("/landing");
+  return session;
+});
 ```
 
-`src/app/admin/(protected)/dashboard/page.tsx` lists users via the admin API:
+**Audit trail** — add an `AuditAction` enum + append-only `AuditLog` model to
+`schema.prisma` (`bun run db:migrate --name add_audit_log`), then a best-effort
+logger in `src/lib/audit.ts`:
 
-```tsx
-import { headers } from "next/headers";
-import { auth } from "@/lib/auth";
-import { getServerSession } from "@/lib/helpers";
-import { AdminSignOutButton } from "@/components/admin";
-
-export default async function AdminDashboardPage() {
-  const session = await getServerSession();
-  if (!session) return null;
-  const { users } = await auth.api.listUsers({ headers: await headers(), query: { limit: 50 } });
-  return (/* header + AdminSignOutButton + list of users with role badges */);
-}
+```ts
+export const logAudit = async (input: LogAuditInput): Promise<void> => {
+  try { await prisma.auditLog.create({ data: input }); } catch { /* never break the request */ }
+};
 ```
 
-`src/components/admin/sign-out-button.tsx` returns to `/login` after sign-out.
+Login, logout, and signup are captured for free via `databaseHooks` in
+`auth.ts` (logout uses `session.delete`, so admin session-revoke and expiry
+count as logouts too):
+
+```ts
+databaseHooks: {
+  session: {
+    create: { after: async (s) => logAudit({ action: AuditAction.login,  actorId: s.userId, ipAddress: s.ipAddress, userAgent: s.userAgent }) },
+    delete: { after: async (s) => logAudit({ action: AuditAction.logout, actorId: s.userId, ipAddress: s.ipAddress, userAgent: s.userAgent }) },
+  },
+  user: { create: { after: async (u) => logAudit({ action: AuditAction.signup, actorId: u.id, targetId: u.id, metadata: { email: u.email } }) } },
+},
+```
+
+**Admin mutations** — server actions in `src/actions/admin/index.ts`, each
+guarded + audited (`setUserRole`, `banUser`, `unbanUser`, `deleteUser`):
+
+```ts
+export const banUser = async (input: unknown) => {
+  const { user } = await requireAdmin();
+  const { userId, banReason } = banUserSchema.parse(input);
+  if (userId === user.id) throw new Error("You can't ban your own account.");
+  await auth.api.banUser({ headers: await headers(), body: { userId, banReason } });
+  await logAudit({ action: AuditAction.user_banned, actorId: user.id, targetId: userId, ...(await requestMeta()) });
+  revalidatePath("/admin/users");
+};
+```
+
+**Layout + sidebar** — `admin/(protected)/layout.tsx` calls `requireAdmin()` and
+renders `AdminSidebar` (hand-rolled shadcn-style, `usePathname` for active
+links; the official shadcn sidebar block isn't in the base-ui registry):
+
+```tsx
+const AdminProtectedLayout = async ({ children }: { children: React.ReactNode }) => {
+  await requireAdmin();
+  return (
+    <div className="flex min-h-screen">
+      <AdminSidebar />
+      <main className="min-w-0 flex-1">{children}</main>
+    </div>
+  );
+};
+export default AdminProtectedLayout;
+```
+
+**Reads via API, writes via actions.** Admin pages **read** through GET route
+handlers (`api/admin/dashboard|users|audit`, guarded by `getAdminSession()` →
+403); each page is a thin server component rendering a client `*-view` that
+fetches the endpoint with React Query. Mutations stay server actions; after one,
+the client `invalidateQueries({ queryKey: ["admin"] })` to refetch (no
+`revalidatePath`).
+
+**Pages** (the dashboard is the `/admin` **index** — `admin/(protected)/page.tsx`,
+not a `dashboard/` subroute):
+
+- **`page.tsx`** → `<DashboardView>` — `StatCard`s (live users, totals, admins,
+  banned, verified, new-24h) + an `AuditList` of recent activity.
+- **`users/page.tsx`** → `<UsersView>` — `UsersTable` (shadcn `Table` + `Badge`)
+  with `UserRowActions` (a `Button` kebab menu wired to the admin server actions).
+- **`audit/page.tsx`** → `<AuditView>` — the last 100 events as a shadcn `Table`.
+
+Pull the primitives via the CLI (base-ui `base-nova` style), declining
+overwrites of customized files — then confirm destructive actions (delete user,
+sign out) with the shared `ConfirmDialog` (built on `AlertDialog`), never
+`window.confirm`:
+
+```sh
+bunx shadcn@latest add table badge alert-dialog --yes
+```
+
+> **Client-bundle trap:** `UserRowActions` is `"use client"`. Importing Prisma's
+> `UserRole` *value* there pulls `node:async_hooks` into the browser and breaks
+> the build — use the client-safe `ROLES` const from `@/lib/types` instead
+> (enum *types* are fine; they're erased at compile time).
+
+**UX wiring:**
+
+- The dashboard is the `/admin` index; credential sign-in routes admins to
+  `/admin` (read `role` off the `signIn` result).
+- `AdminSidebar` is collapsible (icon-only) via local `useState`; the Dashboard
+  link matches `/admin` exactly (not as a prefix).
+- Sign-out **always confirms** through the shared `SignOutConfirm` dialog
+  (`@/components/shared`), reused by the navbar avatar menu and the sidebar —
+  never call `signOut()` straight from a button.
+- The navbar avatar menu is role-aware: admins see an "Admin dashboard" link,
+  everyone else sees profile links — and **every** signed-in user gets a
+  confirmed "Sign out" entry.
+
 There is **no** `/admin/login` — admins use the unified `/login`.
 
 ---
@@ -655,15 +841,24 @@ bun run db:seed                       # optional: create the admin
 bun run dev
 ```
 
+For a production-style run (build the app, then serve it) use the root
+`docker-compose.yml` + `Dockerfile` instead — it runs `db:deploy` then
+`next start`, with no source bind-mount:
+
+```sh
+docker compose up --build
+```
+
 Then walk the flow:
 
-1. **Sign up** at `/signup` → "check your email" screen (no session yet).
+1. **Sign up** at `/signup` (or the navbar **Sign in** modal → Sign up tab) → "check your email" screen (no session yet).
 2. **Grab the link** — from your inbox, or (no SMTP) from the server console:
    `[email] SMTP_HOST not set … http://localhost:3000/api/auth/verify-email?token=…`
 3. **Open the link** → verified, auto-signed-in, redirected to `/landing`.
 4. **Log in** at `/login` with email *or* username (or Google).
 5. **Admin:** `bun run make:admin you@example.com`, sign out/in, then visit
-   `/admin/dashboard`.
+   `/admin` (stats + recent logins), `/admin/users` (change role /
+   ban / delete), and `/admin/audit` (the trail — you should see your own login).
 
 ---
 

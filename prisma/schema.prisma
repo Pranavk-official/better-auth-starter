@@ -17,6 +17,17 @@ enum UserRole {
   admin
 }
 
+enum AuditAction {
+  login
+  logout
+  signup
+  profile_updated
+  user_role_changed
+  user_banned
+  user_unbanned
+  user_deleted
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String
@@ -73,4 +84,21 @@ model Verification {
   expiresAt  DateTime
   createdAt  DateTime? @default(now())
   updatedAt  DateTime? @updatedAt
+}
+
+// Append-only audit trail. Actor/target are stored as plain ids (not relations)
+// so entries survive user deletion; a snapshot lives in `metadata`.
+model AuditLog {
+  id        String      @id @default(cuid())
+  action    AuditAction
+  actorId   String?
+  targetId  String?
+  metadata  Json?
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime    @default(now())
+
+  @@index([actorId])
+  @@index([action])
+  @@index([createdAt])
 }

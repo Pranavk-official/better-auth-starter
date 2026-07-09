@@ -5,10 +5,12 @@ Client components for the protected profile pages
 
 | Component | Role |
 |-----------|------|
-| `EditForm` | Edits the signed-in user's name/image. Submits via React Query `useMutation` → the `updateProfile` server action, then routes back to `/profile/view`. |
+| `ProfileDetails` | Reads `GET /api/profile` with React Query (`["profile"]`) and renders the profile card. |
+| `EditProfileForm` | Edits the signed-in user's name/image. Submits via React Query `useMutation` → the `updateProfile` server action, invalidates `["profile"]`, then routes back to `/profile/view`. |
 
 ## Notes
 
+- **Read via API, write via action.** `ProfileDetails` fetches `/api/profile`;
+  editing goes through the `updateProfile` server action in
+  [`@/actions/profile`](../../actions) — no direct DB access from the client.
 - Validation uses [`@/lib/zod/profile.zod.ts`](../../lib/zod).
-- The mutation calls the server action in
-  [`@/actions/profile`](../../actions) — it does not talk to the DB directly.

@@ -1,15 +1,19 @@
-import { redirect } from "next/navigation";
-import { getServerSession } from "@/lib/helpers";
+import { requireAdmin } from "@/lib/helpers";
+import { AdminSidebar } from "@/components/admin";
 
-export default async function AdminProtectedLayout({
+const AdminProtectedLayout = async ({
   children,
 }: {
   children: React.ReactNode;
-}) {
-  const session = await getServerSession();
+}) => {
+  await requireAdmin();
 
-  if (!session) redirect("/login?redirect=/admin/dashboard");
-  if ((session.user as { role?: string }).role !== "admin") redirect("/landing");
+  return (
+    <div className="flex min-h-screen bg-background">
+      <AdminSidebar />
+      <main className="min-w-0 flex-1">{children}</main>
+    </div>
+  );
+};
 
-  return <>{children}</>;
-}
+export default AdminProtectedLayout;

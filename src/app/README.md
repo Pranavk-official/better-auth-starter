@@ -15,7 +15,11 @@ segment.
 | `profile/view` | `/profile/view` | Protected — `profile/layout.tsx` redirects to `/login` when unauthenticated. |
 | `profile/edit` | `/profile/edit` | Protected profile editing. |
 | `admin/login` | — | **Removed.** Admins sign in at `/login`; the guard redirects there. |
-| `admin/(protected)/dashboard` | `/admin/dashboard` | Requires `role === "admin"` (checked in `admin/(protected)/layout.tsx`); otherwise redirects to `/landing`. |
+| `admin/(protected)` | `/admin` | Admin **dashboard** (index). `requireAdmin()` in `admin/(protected)/layout.tsx` guards the whole group; non-admins → `/landing`. |
+| `admin/(protected)/users` | `/admin/users` | User management. |
+| `admin/(protected)/audit` | `/admin/audit` | Audit log. |
+| `api/admin/dashboard\|users\|audit` | `/api/admin/*` | GET route handlers backing the admin pages (guarded by `getAdminSession()`, 403 otherwise). |
+| `api/profile` | `/api/profile` | GET the signed-in user's profile (401 otherwise). |
 | `api/auth/[...all]` | `/api/auth/*` | Better Auth catch-all handler. |
 
 > ⚠️ A route group adds no URL segment. `profile/` is a **real** segment
@@ -27,7 +31,15 @@ segment.
 Protection lives in `layout.tsx` files using `getServerSession()` from
 [`@/lib/helpers`](../lib/helpers). Route handlers under `api/` are reachable by
 direct HTTP, so **verify the session inside every handler** — a layout guard does
-not protect them.
+not protect them. Admin API handlers use `getAdminSession()` (returns `null`
+instead of redirecting) and reply `403`.
+
+## Data flow
+
+Admin and profile **reads** go through the GET route handlers under `api/`; the
+pages are thin client components that fetch them with React Query. **Writes**
+stay server actions (`@/actions/*`) — after a mutation the client invalidates the
+matching query key (`["admin"]`, `["profile"]`) to refetch.
 
 ## Adding a route
 

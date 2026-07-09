@@ -3,11 +3,50 @@ import { admin, username } from "better-auth/plugins";
 import { prismaAdapter } from "better-auth/adapters/prisma";
 import { prisma } from "@/lib/prisma";
 import { sendEmail } from "@/lib/vendors/nodemailer";
+import { AuditAction, logAudit } from "@/lib/audit";
 
 export const auth = betterAuth({
   database: prismaAdapter(prisma, {
     provider: "postgresql",
   }),
+  databaseHooks: {
+    // A new session row == a successful login (credential or social).
+    session: {
+      create: {
+        after: async (session) => {
+          await logAudit({
+            action: AuditAction.login,
+            actorId: session.userId,
+            ipAddress: session.ipAddress ?? null,
+            userAgent: session.userAgent ?? null,
+          });
+        },
+      },
+      // A session row is removed on sign-out (also on admin revoke / expiry).
+      delete: {
+        after: async (session) => {
+          await logAudit({
+            action: AuditAction.logout,
+            actorId: session.userId,
+            ipAddress: session.ipAddress ?? null,
+            userAgent: session.userAgent ?? null,
+          });
+        },
+      },
+    },
+    user: {
+      create: {
+        after: async (user) => {
+          await logAudit({
+            action: AuditAction.signup,
+            actorId: user.id,
+            targetId: user.id,
+            metadata: { email: user.email, name: user.name },
+          });
+        },
+      },
+    },
+  },
   emailAndPassword: {
     enabled: true,
     // Block credential sign-in until the email is verified.

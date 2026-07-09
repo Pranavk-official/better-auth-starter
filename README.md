@@ -56,6 +56,19 @@ bun run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+### Option C — production build (Docker)
+
+`docker-compose.dev.yml` runs the hot-reload dev server. For a production-style run that **builds** the app and serves the compiled output, use `docker-compose.yml` + `Dockerfile`:
+
+```sh
+cp .env.example .env   # set BETTER_AUTH_SECRET + any providers
+
+# Build the image and run the built app (next build → next start)
+docker compose up --build
+```
+
+The container applies pending migrations (`db:deploy`) and then starts the production server. No source is bind-mounted (unlike dev), so rebuild the image to pick up code changes.
+
 ## Environment variables
 
 Copy `.env.example` to `.env` and fill in the values.
@@ -178,8 +191,8 @@ better-auth-starter/
 ├── prisma.config.ts
 ├── src/
 │   ├── actions/
-│   │   └── profile/
-│   │       └── index.ts            # updateProfile server action
+│   │   ├── profile/                # updateProfile server action
+│   │   └── admin/                  # setUserRole, banUser, unbanUser, deleteUser
 │   ├── app/
 │   │   ├── (auth)/
 │   │   │   ├── layout.tsx          # redirects to /landing if already logged in
@@ -191,27 +204,57 @@ better-auth-starter/
 │   │   │   ├── layout.tsx          # protected — redirects to /login if no session
 │   │   │   ├── view/page.tsx
 │   │   │   └── edit/page.tsx
-│   │   ├── api/auth/[...all]/
-│   │   │   └── route.ts            # Better Auth catch-all handler
+│   │   ├── admin/(protected)/      # requireAdmin() layout + AdminSidebar
+│   │   │   ├── page.tsx            # /admin dashboard (stats + recent activity)
+│   │   │   ├── users/page.tsx      # manage users (role / ban / delete)
+│   │   │   └── audit/page.tsx      # audit log
+│   │   ├── api/
+│   │   │   ├── admin/              # GET dashboard/users/audit (getAdminSession)
+│   │   │   ├── profile/route.ts    # GET signed-in profile
+│   │   │   └── auth/[...all]/route.ts  # Better Auth catch-all handler
 │   │   ├── globals.css
 │   │   ├── layout.tsx              # root layout — mounts Providers
 │   │   └── page.tsx                # redirects to /landing
 │   ├── components/
-│   │   ├── auth/                   # login-form + index.ts
-│   │   ├── profile/                # edit-form + index.ts
+│   │   ├── admin/                  # sidebar, *-view (React Query), users-table, row-actions, stat-card, audit-list
+│   │   ├── auth/                   # auth-form (tabs) + auth-modal, sign-in/up-form, google-button
+│   │   ├── profile/                # profile-details (React Query) + edit-form
 │   │   ├── shared/                 # navbar, providers + index.ts
-│   │   └── ui/                     # shadcn/ui components
+│   │   └── ui/                     # shadcn/ui primitives + password-input
 │   ├── context/
 │   │   └── auth.tsx                # AuthProvider + useAuth() hook
 │   └── lib/
-│       ├── auth.ts                 # Better Auth server instance
+│       ├── auth.ts                 # Better Auth server instance (+ login/signup audit hooks)
 │       ├── auth-client.ts          # Better Auth React client
-│       ├── helpers/                # getServerSession() + index.ts
+│       ├── audit.ts                # logAudit() append-only trail helpers
+│       ├── helpers/                # getServerSession(), requireAdmin() + index.ts
 │       ├── prisma.ts               # Prisma client singleton
+│       ├── types/                  # shared Props/interfaces + ROLES const, by module
 │       ├── utils.ts                # cn() utility
-│       └── zod/                    # auth.zod.ts, profile.zod.ts
+│       └── zod/                    # auth.zod.ts, profile.zod.ts, admin.zod.ts
 └── .env.example
 ```
+
+## Conventions
+
+- **Arrow functions everywhere** — components (`export const Foo = () => ...`), handlers, helpers, and page/layout default exports (`const Page = () => ...; export default Page`). Generated shadcn/ui primitives keep their upstream style.
+- **One component per file** — split sub-components (button, form, icon) into their own files under the module folder and re-export via `index.ts`.
+- **Icons** — use [`react-icons`](https://react-icons.github.io/react-icons/) (e.g. `FcGoogle`, `LuEye`). No inline `<svg>` in feature code.
+- **Types** — shared types and component `Props` live in `src/lib/types/<module>.ts`, re-exported from `src/lib/types/index.ts` (`@/lib/types`).
+- **Type naming** — industry standard: interfaces are PascalCase with **no `I` prefix**; a component's props are `<Component>Props` (e.g. `AuthFormProps`). `interface` for object shapes, `type` for unions/aliases.
+- **RBAC** — guard admin server components and server actions with `await requireAdmin()` from `@/lib/helpers`. Don't rely on the `(protected)` route group alone.
+- **No Prisma in client bundles** — never import the Prisma client or its enum *values* into a `"use client"` component (it drags `node:async_hooks` into the browser and breaks the build). Import enum *types* only, or use the `ROLES` const from `@/lib/types`.
+- **Lean on shadcn primitives** — `Button` (not raw `<button>`), `Table`, `Badge`, `Dialog` (content modals), `AlertDialog` (confirmations). Add missing ones with `bunx shadcn@latest add <name> --yes` (base-ui `base-nova` style); decline overwriting customized files. Confirmations use the shared `ConfirmDialog`, never `window.confirm`.
+
+## Admin area & audit trail
+
+- **Admin** lives at `/admin` behind `requireAdmin()`, with a collapsible shadcn-style `AdminSidebar`. `/admin` **is** the dashboard (index route); admins are sent there automatically on credential sign-in.
+  - **Dashboard** (`/admin`) — live users (distinct non-expired sessions) + totals (users, admins, banned, verified, new-24h) and recent activity.
+  - **Users** — promote/demote, ban/unban, delete via `@/actions/admin` server actions.
+  - **Audit** — the event log.
+- **Reads via API, writes via actions** — admin/profile pages fetch GET route handlers (`api/admin/*`, `api/profile`) with React Query; mutations are server actions and the client invalidates the query key afterward.
+- **Sign out always confirms** (shared `SignOutConfirm` dialog) and is available to every signed-in user from the avatar menu. That menu is role-aware: admins get an "Admin dashboard" link, others get profile links.
+- **Audit trail** — `logAudit()` (`@/lib/audit`) appends to the `AuditLog` table. Login, logout, and signup are captured automatically via Better Auth `databaseHooks` in `auth.ts`; profile updates and every admin mutation are logged explicitly. Bootstrap an admin with `bun run db:seed` or `bun run make:admin <email>`.
 
 ## Path aliases
 

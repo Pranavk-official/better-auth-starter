@@ -1,9 +1,9 @@
-import { SignupForm } from "@/components/auth";
+import { AuthForm } from "@/components/auth";
 
-export default function SignupPage() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <SignupForm />
-    </div>
-  );
-}
+const SignupPage = () => (
+  <div className="min-h-screen flex items-center justify-center bg-background">
+    <AuthForm defaultTab="signup" />
+  </div>
+);
+
+export default SignupPage;

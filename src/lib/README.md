@@ -8,7 +8,9 @@ Core library code shared across the app.
 | `auth-client.ts` | Better Auth **React client** (`authClient`) + named exports `signIn`, `signOut`, `signUp`, `useSession`, `getSession`. |
 | `prisma.ts` | Prisma singleton. Creates a `pg.Pool` wrapped by `PrismaPg` (Prisma 7 requires a driver adapter). Import `{ prisma }` — never `new PrismaClient()`. |
 | `utils.ts` | Small shared helpers (e.g. `cn()` class merger). |
-| [`helpers/`](./helpers) | Server-side session helpers (`getServerSession`). |
+| `audit.ts` | Append-only audit trail: `logAudit()` (best-effort), `requestMeta()` (ip/ua), `resolveAuditActors()`. |
+| [`helpers/`](./helpers) | Server-side session helpers (`getServerSession`, `requireAdmin`). |
+| [`types/`](./types) | Shared TypeScript types + component `Props`, one file per module. |
 | [`vendors/`](./vendors) | Third-party service integrations (SMTP mailer, …). |
 | [`zod/`](./zod) | Zod validation schemas, one file per module. |
 

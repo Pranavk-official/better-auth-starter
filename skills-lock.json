@@ -12,6 +12,12 @@
       "sourceType": "github",
       "skillPath": "skills/ponytail/SKILL.md",
       "computedHash": "4503a9dba2dca5836469a104c90e0c32ae9cb8bb97d02806e6fa06d15ceed56a"
+    },
+    "shadcn-ui": {
+      "source": "google-labs-code/stitch-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/stitch-build/skills/shadcn-ui/SKILL.md",
+      "computedHash": "dadbca54d35a33fe73e40018611af2179689305bf6da812ab2643987fefd9da3"
     }
   }
 }
