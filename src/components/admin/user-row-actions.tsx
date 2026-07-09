@@ -39,11 +39,11 @@ export const UserRowActions = ({ user, disabled }: UserRowActionsProps) => {
         <DropdownMenuTrigger
           disabled={disabled || pending}
           render={
-            <Button variant="ghost" size="icon-sm" aria-label="User actions" />
+            <Button variant="ghost" size="icon-sm" aria-label="User actions">
+              <LuEllipsisVertical className="h-4 w-4" />
+            </Button>
           }
-        >
-          <LuEllipsisVertical className="h-4 w-4" />
-        </DropdownMenuTrigger>
+        />
         <DropdownMenuContent align="end" className="w-44">
           <DropdownMenuItem
             onClick={() =>

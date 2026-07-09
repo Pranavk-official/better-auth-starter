@@ -27,16 +27,16 @@ export const SignInForm = ({ redirectTo }: SignInFormProps) => {
     setNotice(null);
     const isEmail = data.identifier.includes("@");
 
+    // No `callbackURL` — it makes Better Auth redirect on success, which would
+    // override the role-based `router.push` below (admins must land on /admin).
     const result = isEmail
       ? await signIn.email({
           email: data.identifier,
           password: data.password,
-          callbackURL: redirectTo,
         })
       : await signIn.username({
           username: data.identifier,
           password: data.password,
-          callbackURL: redirectTo,
         });
 
     if (result?.error) {
